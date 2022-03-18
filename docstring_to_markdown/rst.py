@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from enum import IntEnum, auto
 from types import SimpleNamespace
 from typing import Union, List, Dict
@@ -279,6 +280,7 @@ def looks_like_rst(value: str) -> bool:
     return bool(re.search(r'(\s|\w)::\n', value) or '\n>>> ' in value)
 
 
+@dataclass
 class IBlockBeginning(SimpleNamespace):
     """
     Line that does not belong to the code block and should be prepended and analysed separately
@@ -287,7 +289,6 @@ class IBlockBeginning(SimpleNamespace):
 
 
 class IParser(ABC):
-
     @abstractmethod
     def can_parse(self, line: str) -> bool:
         """Whether the line looks like a valid beginning of parsed block."""
@@ -317,8 +318,9 @@ class IParser(ABC):
     follower: Union['IParser', None] = None
 
 
+@dataclass
 class TableParser(IParser):
-
+    @dataclass
     class State(IntEnum):
         AWAITS = auto()
         PARSING_HEADER = auto()
@@ -331,16 +333,13 @@ class TableParser(IParser):
     column_top_border: str
     column_end_offset: int
 
-    _state: int
-    _column_starts: List[int]
-    _columns_end: int
-    _columns: List[str]
-    _rows: List[List[str]]
-    _max_sizes: List[int]
-    _indent: str
-
-    def __init__(self):
-        self._reset_state()
+    _state: int = State.AWAITS
+    _column_starts: List[int] = field(default_factory=list)
+    _columns_end: int = -1
+    _columns: List[str] = field(default_factory=list)
+    _rows: List[List[str]] = field(default_factory=list)
+    _max_sizes: List[int] = field(default_factory=list)
+    _indent: str = ""
 
     def _reset_state(self):
         self._state = TableParser.State.AWAITS
@@ -426,20 +425,22 @@ class TableParser(IParser):
         return result
 
 
+@dataclass
 class SimpleTableParser(TableParser):
-    outer_border_pattern = r'^(?P<indent>\s*)=+(?P<column> +=+)+$'
-    column_top_prefix = ' '
-    column_top_border = '='
-    column_end_offset = 0
+    outer_border_pattern: str = r"^(?P<indent>\s*)=+(?P<column> +=+)+$"
+    column_top_prefix: str = " "
+    column_top_border: str = "="
+    column_end_offset: int = 0
 
 
+@dataclass
 class GridTableParser(TableParser):
-    outer_border_pattern = r'^(?P<indent>\s*)(?P<column>\+-+)+\+$'
-    column_top_prefix = '+'
-    column_top_border = '-'
-    column_end_offset = -1
+    outer_border_pattern: str = r"^(?P<indent>\s*)(?P<column>\+-+)+\+$"
+    column_top_prefix: str = "+"
+    column_top_border: str = "-"
+    column_end_offset: int = -1
 
-    _expecting_row_content: bool
+    _expecting_row_content: bool = True
 
     def _reset_state(self):
         super()._reset_state()
@@ -469,14 +470,12 @@ class GridTableParser(TableParser):
 
 
 class BlockParser(IParser):
-    enclosure = '```'
+    enclosure: str = '```'
     follower: Union['IParser', None] = None
-    _buffer: List[str]
-    _block_started: bool
 
     def __init__(self):
-        self._buffer = []
-        self._block_started = False
+        self._buffer: List[str] = []
+        self._block_started: bool = False
 
     @abstractmethod
     def can_parse(self, line: str) -> bool:
@@ -504,13 +503,13 @@ class BlockParser(IParser):
         return result
 
 
+@dataclass
 class IndentedBlockParser(BlockParser, ABC):
-    _is_block_beginning: bool
-    _block_indent_size: Union[int, None]
+    _is_block_beginning: bool = False
+    _block_indent_size: Union[int, None] = None
 
-    def __init__(self):
+    def __post_init__(self):
         super(IndentedBlockParser, self).__init__()
-        self._is_block_beginning = False
 
     def _start_block(self, language: str):
         super()._start_block(language)
